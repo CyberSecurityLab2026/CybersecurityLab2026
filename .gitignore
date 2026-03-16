@@ -1,0 +1,15 @@
+# Python
+python-vuln-app/venv/
+__pycache__/
+*.pyc
+
+# Java
+java-vuln-app/target/
+*.class
+
+# Logs
+*.log
+
+# IDE/editor files
+.idea/
+*.iml

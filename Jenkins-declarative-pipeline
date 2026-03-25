@@ -1,0 +1,124 @@
+pipeline {
+    agent any
+
+    tools {
+        maven 'maven'     // Must match your Maven installation name in Jenkins
+        jdk 'jdk-17'      // Must match your JDK installation name in Jenkins
+    }
+
+    environment {
+        JAVA_APP_DIR   = "/var/lib/jenkins/workspace/Vulnerability App Build/java-vuln-app"
+        PYTHON_APP_DIR = "/var/lib/jenkins/workspace/Vulnerability App Build/python-vuln-app"
+        SONARQUBE      = "SonarQube"  // Name of SonarQube server configured in Jenkins
+    }
+
+    stages {
+
+        // ===============================
+        // Stage 1: Clean Workspace
+        // ===============================
+        stage('Clean Workspace') {
+            steps {
+                echo 'Cleaning workspace before build...'
+                deleteDir()
+            }
+        }
+
+        // ===============================
+        // Stage 2: Checkout Code
+        // ===============================
+        stage('Checkout Code') {
+            steps {
+                echo 'Cloning repository...'
+                git branch: 'main',
+                    url: 'https://github.com/mentordimgba/CybersecurityLab2026.git'
+            }
+        }
+
+        // ===============================
+        // Stage 3: Build Java App
+        // ===============================
+        stage('Build Java App') {
+            steps {
+                dir("${JAVA_APP_DIR}") {
+                    echo 'Building Java application...'
+                    sh 'mvn clean package'
+                }
+            }
+        }
+
+        // ===============================
+        // Stage 4: Build Python App
+        // ===============================
+        stage('Build Python App') {
+            steps {
+                dir("${PYTHON_APP_DIR}") {
+                    echo 'Setting up Python virtual environment and installing dependencies...'
+                    sh '''
+                        python3 -m venv venv
+                        source venv/bin/activate
+                        pip install --upgrade pip
+                        pip install -r requirements.txt
+                        deactivate
+                    '''
+                }
+            }
+        }
+
+        // ===============================
+        // Stage 5: SonarQube Analysis - Java
+        // ===============================
+        stage('SonarQube Analysis - Java') {
+            steps {
+                dir("${JAVA_APP_DIR}") {
+                    echo 'Running SonarQube analysis for Java...'
+                    withSonarQubeEnv("${SONARQUBE}") {
+                        sh 'mvn sonar:sonar -Dsonar.projectKey=devsecops-lab'
+                    }
+                }
+            }
+        }
+
+        // ===============================
+        // Stage 6: SonarQube Analysis - Python
+        // ===============================
+        stage('SonarQube Analysis - Python') {
+            steps {
+                dir("${PYTHON_APP_DIR}") {
+                    echo 'Running SonarQube analysis for Python...'
+                    withSonarQubeEnv("${SONARQUBE}") {
+                        sh '''
+                            source venv/bin/activate
+                            /opt/sonar-scanner-cli/bin/sonar-scanner \
+                              -Dsonar.projectKey=devsecops-lab \
+                              -Dsonar.sources=.
+                            deactivate
+                        '''
+                    }
+                }
+            }
+        }
+
+        // ===============================
+        // Stage 7: Verify Artifacts
+        // ===============================
+        stage('Verify Artifacts') {
+            steps {
+                echo "Java JAR built:"
+                sh '''
+                    if ls "${JAVA_APP_DIR}/target/"*.jar 1> /dev/null 2>&1; then
+                        ls -l "${JAVA_APP_DIR}/target/"*.jar
+                    else
+                        echo "No JAR found"
+                    fi
+                '''
+            }
+        }
+    }
+
+    post {
+        always {
+            echo 'Pipeline finished. Check SonarQube for results.'
+        }
+    }
+}
